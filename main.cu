@@ -113,7 +113,6 @@ struct TerrainNoises {
     PermutationTable surfaceElevation[4];
     PermutationTable scale[10];
     PermutationTable depth[16];
-    PermutationTable forest[8];
 };
 enum blocks {
     AIR,
@@ -751,8 +750,7 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
             for (int y = 90; y >= MIN; y--) {
                 int chunkCachePos = (x * 16 + z) * 128 + y;
                 uint8_t previousBlock = (*chunkCache)[chunkCachePos];
-
-                if (previousBlock == 0) {
+                if (previousBlock == AIR) {
                     state = -1;
                     continue;
                 }
@@ -804,8 +802,6 @@ static inline TerrainNoises *initTerrain(uint64_t worldSeed) {
     initOctaves(octaves, &worldRandom, 10);
     octaves = terrainNoises->depth;
     initOctaves(octaves, &worldRandom, 16);
-    octaves = terrainNoises->forest;
-    initOctaves(octaves, &worldRandom, 8);
     return terrainNoises;
 }
 

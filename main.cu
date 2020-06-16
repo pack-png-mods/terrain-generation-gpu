@@ -1,10 +1,10 @@
 // nvcc -std c++14 main.cu -o terrain_gen -O4
 #include <iostream>
-#include <iostream>
 #include <chrono>
 #include <string>
 #include <fstream>
 #include <algorithm>
+#include <memory.h>
 
 static_assert(std::numeric_limits<double>::is_iec559, "This code requires IEEE-754 doubles");
 

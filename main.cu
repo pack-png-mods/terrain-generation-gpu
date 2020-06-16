@@ -1,4 +1,4 @@
-// nvcc -std c++14 main.cu -o terrain_gen -O4
+// nvcc -std c++14 main.cu -o terrain_gen -O3
 #include <iostream>
 #include <chrono>
 #include <string>
@@ -724,16 +724,13 @@ static inline void generateTerrain(int chunkX, int chunkZ, uint8_t **chunkCache,
 
 
 static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunkCache, Random *worldRandom, TerrainNoises terrainNoises,uint8_t** chunkHeights) {
-    uint8_t oceanLevel = 64;
-    uint8_t MIN = oceanLevel;
-    double noiseFactor = 0.03125;
     auto *sandFields = new double[16 * 16];
     auto *gravelField = new double[16 * 16];
     auto *heightField = new double[16 * 16];
     //generateNoise(sandFields, chunkX * 16, chunkZ * 16, 0.0, 16, 16, 1, noiseFactor, noiseFactor, 1.0, terrainNoises.shoresBottomComposition, 4, 1);
     // beware this error in alpha ;)
     //generateFixedNoise(gravelField, chunkZ * 16, chunkX * 16, 16, 16, noiseFactor, noiseFactor, terrainNoises.shoresBottomComposition, 4);
-    generateNoise(heightField, chunkX * 16, chunkZ * 16, 0.0, 16, 16, 1, noiseFactor * 2.0, noiseFactor * 2.0, noiseFactor * 2.0, terrainNoises.surfaceElevation, 4, 1);
+    generateNoise(heightField, chunkX * 16, chunkZ * 16, 0.0, 16, 16, 1, 0.03125 * 2.0, 0.03125 * 2.0, 0.03125 * 2.0, terrainNoises.surfaceElevation, 4, 1);
 
     for (int x = 0; x < 16; x++) {
         for (int k = 0; k < 12; k++) {
@@ -751,7 +748,7 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
             int state = -1;
             uint8_t aboveOceanAkaLand = GRASS;
             uint8_t belowOceanAkaEarthCrust = DIRT;
-            for (int y = 90; y >= MIN; y--) {
+            for (int y = 80; y >= 70; y--) {
                 int chunkCachePos = (x * 16 + z) * 128 + y;
                 uint8_t previousBlock = (*chunkCache)[chunkCachePos];
                 if (previousBlock == AIR) {
@@ -765,6 +762,7 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
                     if (elevation <= 0) { // if in a deep
                         aboveOceanAkaLand = AIR;
                         belowOceanAkaEarthCrust = STONE;
+                        // TODO remove that check to not pass the test and run in prod
                         (*chunkHeights)[x * 16 + z] = y;
                         break;
                     }else{

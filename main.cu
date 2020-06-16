@@ -16,6 +16,12 @@ static_assert(std::numeric_limits<double>::is_iec559, "This code requires IEEE-7
 #define RANDOM_SCALE 0x1.0p-53
 #define get_random(seed) ((Random)((seed ^ RANDOM_MULTIPLIER) & RANDOM_MASK))
 
+static inline void advance4(Random *random){
+    *random = (*random* 0x32EB772C5F11LLU +0x2D3873C4CD04LLU) & RANDOM_MASK;
+}
+static inline void advance6(Random *random){
+    *random = (*random* 0x45D73749A7F9LLU +0x17617168255ELLU) & RANDOM_MASK;
+}
 
 static inline int32_t random_next(Random *random, int bits) {
     *random = (*random * RANDOM_MULTIPLIER + RANDOM_ADDEND) & RANDOM_MASK;
@@ -731,9 +737,8 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
 
     for (int x = 0; x < 16; x++) {
         for (int k = 0; k < 12; k++) {
-            next_double(worldRandom);
-            next_double(worldRandom);
-            next_double(worldRandom);
+            advance6(worldRandom);
+            // could be just advanced but i am afraid of nextInt
             for (int w = 0; w < 128; w++) {
                 random_next_int(worldRandom, 5);
             }
@@ -741,8 +746,7 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
         for (int z = 12; z < 16; z++) {
            // bool sandy = sandFields[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 0.0;
            // bool gravelly = gravelField[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 3;
-            next_double(worldRandom);
-            next_double(worldRandom);
+            advance4(worldRandom);
             int elevation = (int) (heightField[x + z * 16] / 3.0 + 3.0 + next_double(worldRandom) * 0.25);
             int state = -1;
             uint8_t aboveOceanAkaLand = GRASS;
@@ -773,6 +777,7 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
 
                 }
             }
+            // could be just advanced but i am afraid of nextInt
             for (int k = 0; k < 128; k++) {
                 random_next_int(worldRandom, 5);
             }
@@ -793,6 +798,7 @@ static inline TerrainNoises *initTerrain(uint64_t worldSeed) {
     octaves = terrainNoises->maxLimit;
     initOctaves(octaves, &worldRandom, 16);
     octaves = terrainNoises->mainLimit;
+    // could be just advanced but i am afraid of nextInt
     initOctaves(octaves, &worldRandom, 8);
     octaves = terrainNoises->shoresBottomComposition;
     initOctaves(octaves, &worldRandom, 4);

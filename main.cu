@@ -8,7 +8,7 @@
 
 static_assert(std::numeric_limits<double>::is_iec559, "This code requires IEEE-754 doubles");
 
-
+#define OFFSET 12
 #define Random uint64_t
 #define RANDOM_MULTIPLIER 0x5DEECE66DULL
 #define RANDOM_ADDEND 0xBULL
@@ -135,7 +135,6 @@ enum blocks {
 
 struct TerrainResult {
     BiomeResult *biomeResult;
-    uint8_t *chunkCache;
     uint8_t *chunkHeights;
 };
 
@@ -764,10 +763,10 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
                         aboveOceanAkaLand = AIR;
                         belowOceanAkaEarthCrust = STONE;
                         // TODO remove that check to not pass the test and run in prod
-                        (*chunkHeights)[x * 16 + z] = y;
+                        (*chunkHeights)[x * 4 + (z - OFFSET)] = y;
                         break;
                     } else {
-                        (*chunkHeights)[x * 16 + z] = y + 1;
+                        (*chunkHeights)[x * 4 + (z - OFFSET)] = y + 1;
                         break;
                     }
                     state = elevation;
@@ -824,15 +823,14 @@ static inline uint8_t *provideChunk(int chunkX, int chunkZ, BiomeResult *biomeRe
     Random worldRandom = get_random((uint64_t)((long) chunkX * 0x4f9939f508L + (long) chunkZ * 0x1ef1565bd5L));
     auto *chunkCache = new uint8_t[32768];
     generateTerrain(chunkX, chunkZ, &chunkCache, biomeResult->temperature, biomeResult->humidity, *terrainNoises);
-    auto *chunkHeights = new uint8_t[256];
-    memset(chunkHeights, 0, 256);
+    auto *chunkHeights = new uint8_t[64];
+    memset(chunkHeights, 0, 64);
     replaceBlockForBiomes(chunkX, chunkZ, &chunkCache, &worldRandom, *terrainNoises, &chunkHeights);
     delete[] chunkCache;
     return chunkHeights;
 }
 
 void delete_terrain_result(TerrainResult *terrainResult) {
-    delete[] terrainResult->chunkCache;
     delete[] terrainResult->chunkHeights;
     delete_biome_result(terrainResult->biomeResult);
     delete terrainResult;
@@ -849,32 +847,16 @@ uint8_t *TerrainHeights(uint64_t worldSeed, int32_t chunkX, int32_t chunkZ, Biom
     TerrainNoises *terrainNoises = initTerrain(worldSeed);
     auto *chunkHeights = provideChunk(chunkX, chunkZ, biomeResult, terrainNoises);
     delete[] terrainNoises;
-    auto *chunkRestrictedHeights = new uint8_t[4 * 16];
-    for (int x = 0; x < 16; ++x) {
-        for (int z = 12; z < 16; ++z) {
-            chunkRestrictedHeights[x * 4 + (z - 12)] = chunkHeights[x * 16 + z];
-        }
-    }
-    delete[] chunkHeights;
-    return chunkRestrictedHeights;
+    return chunkHeights;
 }
 
 
 TerrainResult *TerrainWrapper(uint64_t worldSeed, int32_t chunkX, int32_t chunkZ) {
     BiomeResult *biomeResult = BiomeWrapper(worldSeed, chunkX, chunkZ);
-    auto *chunkCache = TerrainInternalWrapper(worldSeed, chunkX, chunkZ, biomeResult);
-    auto *chunkHeights = new uint8_t[4 * 16];
-    for (int x = 0; x < 16; ++x) {
-        for (int z = 12; z < 16; ++z) {
-            //std::cout<<(y + 1)<<" ";
-            chunkHeights[x * 4 + (z - 12)] = chunkCache[x * 16 + z];
-        }
-        //std::cout<<std::endl;
-    }
+    auto *chunkHeights = TerrainInternalWrapper(worldSeed, chunkX, chunkZ, biomeResult);
     auto *terrainResult = new TerrainResult;
     terrainResult->biomeResult = biomeResult;
     terrainResult->chunkHeights = chunkHeights;
-    terrainResult->chunkCache = chunkCache;
     return terrainResult;
 }
 
@@ -888,8 +870,6 @@ static void printHeights(uint64_t worldSeed, int32_t chunkX, int32_t chunkZ) {
     }
 }
 
-
-# define OFFSET 12
 
 void filterDownSeeds(const uint64_t *worldSeeds, int32_t posX, int64_t nbSeeds) {
     uint8_t mapWat[] = {77, 78, 77, 75}; // from z 12 to z15 in chunk
@@ -910,11 +890,11 @@ void filterDownSeeds(const uint64_t *worldSeeds, int32_t posX, int64_t nbSeeds) 
             delete_biome_result(biomeResult);
             continue;
         }
-        uint8_t *chunkCache = TerrainInternalWrapper(seed, chunkX, chunkZ, biomeResult);
+        uint8_t *chunkHeights = TerrainInternalWrapper(seed, chunkX, chunkZ, biomeResult);
         for (int x = 0; x < 16; x++) {
             bool flag = true;
             for (uint8_t z = 0; z < (16 - OFFSET); z++) {
-                if (chunkCache[x * 16 + z + OFFSET] != mapWat[z]) {
+                if (chunkHeights[x * 4 + z] != mapWat[z]) {
                     flag = false;
                     break;
                 }
@@ -924,7 +904,7 @@ void filterDownSeeds(const uint64_t *worldSeeds, int32_t posX, int64_t nbSeeds) 
                 std::cout << "Found seed: " << seed << " at x: " << posX << " and z:-30" << std::endl;
             }
         }
-        delete[] chunkCache;
+        delete[] chunkHeights;
         delete_biome_result(biomeResult);
     }
 

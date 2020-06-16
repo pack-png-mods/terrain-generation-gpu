@@ -16,11 +16,12 @@ static_assert(std::numeric_limits<double>::is_iec559, "This code requires IEEE-7
 #define RANDOM_SCALE 0x1.0p-53
 #define get_random(seed) ((Random)((seed ^ RANDOM_MULTIPLIER) & RANDOM_MASK))
 
-static inline void advance4(Random *random){
-    *random = (*random* 0x32EB772C5F11LLU +0x2D3873C4CD04LLU) & RANDOM_MASK;
+static inline void advance4(Random *random) {
+    *random = (*random * 0x32EB772C5F11LLU + 0x2D3873C4CD04LLU) & RANDOM_MASK;
 }
-static inline void advance6(Random *random){
-    *random = (*random* 0x45D73749A7F9LLU +0x17617168255ELLU) & RANDOM_MASK;
+
+static inline void advance6(Random *random) {
+    *random = (*random * 0x45D73749A7F9LLU + 0x17617168255ELLU) & RANDOM_MASK;
 }
 
 static inline int32_t random_next(Random *random, int bits) {
@@ -115,7 +116,7 @@ struct TerrainNoises {
     PermutationTable minLimit[16];
     PermutationTable maxLimit[16];
     PermutationTable mainLimit[8];
-    PermutationTable shoresBottomComposition[4];
+    //PermutationTable shoresBottomComposition[4];
     PermutationTable surfaceElevation[4];
     PermutationTable scale[10];
     PermutationTable depth[16];
@@ -723,7 +724,7 @@ static inline void generateTerrain(int chunkX, int chunkZ, uint8_t **chunkCache,
 }
 
 
-static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunkCache, Random *worldRandom, TerrainNoises terrainNoises,uint8_t** chunkHeights) {
+static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunkCache, Random *worldRandom, TerrainNoises terrainNoises, uint8_t **chunkHeights) {
     auto *sandFields = new double[16 * 16];
     auto *gravelField = new double[16 * 16];
     auto *heightField = new double[16 * 16];
@@ -741,8 +742,8 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
             }
         }
         for (int z = 12; z < 16; z++) {
-           // bool sandy = sandFields[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 0.0;
-           // bool gravelly = gravelField[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 3;
+            // bool sandy = sandFields[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 0.0;
+            // bool gravelly = gravelField[x + z * 16] + next_double(worldRandom) * 0.20000000000000001 > 3;
             advance4(worldRandom);
             int elevation = (int) (heightField[x + z * 16] / 3.0 + 3.0 + next_double(worldRandom) * 0.25);
             int state = -1;
@@ -765,8 +766,8 @@ static inline void replaceBlockForBiomes(int chunkX, int chunkZ, uint8_t **chunk
                         // TODO remove that check to not pass the test and run in prod
                         (*chunkHeights)[x * 16 + z] = y;
                         break;
-                    }else{
-                        (*chunkHeights)[x * 16 + z] = y+1;
+                    } else {
+                        (*chunkHeights)[x * 16 + z] = y + 1;
                         break;
                     }
                     state = elevation;
@@ -801,10 +802,15 @@ static inline TerrainNoises *initTerrain(uint64_t worldSeed) {
     octaves = terrainNoises->maxLimit;
     initOctaves(octaves, &worldRandom, 16);
     octaves = terrainNoises->mainLimit;
-    // could be just advanced but i am afraid of nextInt
     initOctaves(octaves, &worldRandom, 8);
-    octaves = terrainNoises->shoresBottomComposition;
-    initOctaves(octaves, &worldRandom, 4);
+    for (int j = 0; j < 4; j++) { //shore and river composition
+        advance6(&worldRandom);
+        // could be just advanced but i am afraid of nextInt
+        uint8_t i = 0;
+        do {
+            random_next_int(&worldRandom, 256u - i);
+        } while (i++ != 255);
+    }
     octaves = terrainNoises->surfaceElevation;
     initOctaves(octaves, &worldRandom, 4);
     octaves = terrainNoises->scale;
@@ -818,9 +824,9 @@ static inline uint8_t *provideChunk(int chunkX, int chunkZ, BiomeResult *biomeRe
     Random worldRandom = get_random((uint64_t)((long) chunkX * 0x4f9939f508L + (long) chunkZ * 0x1ef1565bd5L));
     auto *chunkCache = new uint8_t[32768];
     generateTerrain(chunkX, chunkZ, &chunkCache, biomeResult->temperature, biomeResult->humidity, *terrainNoises);
-    auto *chunkHeights= new uint8_t[256];
-    memset(chunkHeights,0,256);
-    replaceBlockForBiomes(chunkX, chunkZ, &chunkCache, &worldRandom, *terrainNoises,&chunkHeights);
+    auto *chunkHeights = new uint8_t[256];
+    memset(chunkHeights, 0, 256);
+    replaceBlockForBiomes(chunkX, chunkZ, &chunkCache, &worldRandom, *terrainNoises, &chunkHeights);
     delete[] chunkCache;
     return chunkHeights;
 }
@@ -846,7 +852,7 @@ uint8_t *TerrainHeights(uint64_t worldSeed, int32_t chunkX, int32_t chunkZ, Biom
     auto *chunkRestrictedHeights = new uint8_t[4 * 16];
     for (int x = 0; x < 16; ++x) {
         for (int z = 12; z < 16; ++z) {
-            chunkRestrictedHeights[x * 4 + (z - 12)] = chunkHeights[ x * 16+z];
+            chunkRestrictedHeights[x * 4 + (z - 12)] = chunkHeights[x * 16 + z];
         }
     }
     delete[] chunkHeights;
@@ -861,7 +867,7 @@ TerrainResult *TerrainWrapper(uint64_t worldSeed, int32_t chunkX, int32_t chunkZ
     for (int x = 0; x < 16; ++x) {
         for (int z = 12; z < 16; ++z) {
             //std::cout<<(y + 1)<<" ";
-            chunkHeights[x * 4 + (z - 12)] = chunkCache[x*16+z];
+            chunkHeights[x * 4 + (z - 12)] = chunkCache[x * 16 + z];
         }
         //std::cout<<std::endl;
     }
@@ -908,7 +914,7 @@ void filterDownSeeds(const uint64_t *worldSeeds, int32_t posX, int64_t nbSeeds) 
         for (int x = 0; x < 16; x++) {
             bool flag = true;
             for (uint8_t z = 0; z < (16 - OFFSET); z++) {
-                if (chunkCache[x*16+z+OFFSET] != mapWat[z]) {
+                if (chunkCache[x * 16 + z + OFFSET] != mapWat[z]) {
                     flag = false;
                     break;
                 }
